@@ -104,6 +104,7 @@ class Column:
                 del self._unique[state]
                 # delete from self.states
                 self.states = [s for s in self.states if s != state]
+                state.e_col = self
                 self.states.append(state)
                 self._unique[state] = state
             return self._unique[state]
@@ -404,7 +405,7 @@ START = '<start>'
 
 
 myg = EarleyParser(grammar)
-inp = '1'
+inp = '0'
 print(repr(inp))
 forests = myg.parse_on(inp, START)
 for forest in forests:
