@@ -100,6 +100,12 @@ class Column:
 
     def add(self, state):
         if state in self._unique:
+            if self._unique[state].weight > state.weight:
+                del self._unique[state]
+                # delete from self.states
+                self.states = [s for s in self.states if s != state]
+                self.states.append(state)
+                self._unique[state] = state
             return self._unique[state]
         self._unique[state] = state
         self.states.append(state)
@@ -402,7 +408,7 @@ inp = '1'
 print(repr(inp))
 forests = myg.parse_on(inp, START)
 for forest in forests:
-    print(1)
+    print('parse:', inp)
     #for v in myg.extract_trees(forest):
     #    print(format_parsetree(v))
     #    print('||||||||||||||||||\n')
