@@ -1,3 +1,7 @@
+import sys
+import random
+sys.setrecursionlimit(10000)
+
 import itertools as I
 Any_plus = '<$.+>' # this is a nonterminal
 Any_one = '{$.}' # this is a terminal
@@ -72,7 +76,6 @@ def change_t(t):
         return to_term(t)
 
 def fix_weighted_terminals(g):
-    terms = set()
     keys = [k for k in g]
     for k in keys:
         for alt,w in g[k]:
@@ -170,6 +173,8 @@ class EarleyParser(Parser):
         self.epsilon = nullable(grammar)
         self._grammar = g_e
         self.log = log
+
+        self._grammar = add_any(self._grammar)
 
 def is_nt(k):
     if len(k) == 1: return False
@@ -303,7 +308,6 @@ class EarleyParser(EarleyParser):
 
 class EarleyParser(EarleyParser):
     def parse_on(self, text, start_symbol):
-        self._grammar = add_any(self._grammar)
         self._grammar = add_start(self._grammar, start_symbol)
         print_g(self._grammar)
 
@@ -342,6 +346,45 @@ class EarleyParser(EarleyParser):
             for p in I.product(*ptrees):
                 yield (name, p)
 
+
+class SimpleExtractor:
+    def __init__(self, parser, text, start_symbol):
+        parser._grammar = add_start(parser._grammar, start_symbol)
+        self.parser = parser
+        cursor, states = parser.parse_prefix(text, start_symbol, parser._grammar[start_symbol][0])
+        start = next((s for s in states if s.finished()), None)
+        if cursor < len(text) or not start:
+            raise SyntaxError("at " + repr(cursor))
+        self.my_forest = parser.parse_forest(parser.table, start)
+
+    def extract_a_node(self, forest_node):
+        name, paths = forest_node
+        if not paths:
+            return ((name, 0, 1), []), (name, [])
+        cur_path, i, l = self.choose_path(paths)
+        child_nodes = []
+        pos_nodes = []
+        for s, kind, chart in cur_path:
+            f = self.parser.forest(s, kind, chart)
+            postree, ntree = self.extract_a_node(f)
+            child_nodes.append(ntree)
+            pos_nodes.append(postree)
+
+        return ((name, i, l), pos_nodes), (name, child_nodes)
+
+    def choose_path(self, arr):
+        l = len(arr)
+        i = random.randrange(l)
+        res = sorted([(self.cost_of_path(a),a) for a in arr], key=lambda a: a[0])
+        return res[0][1], None, None
+
+    def cost_of_path(self, p):
+        states = [s for s,kind,chart in p if kind == 'n']
+        return sum([s.weight for s in states])
+
+    def extract_a_tree(self):
+        pos_tree, parse_tree = self.extract_a_node(self.my_forest)
+        return parse_tree
 
 class O:
     def __init__(self, **keys): self.__dict__.update(keys)
@@ -414,12 +457,15 @@ START = '<start>'
 
 
 myg = EarleyParser(grammar)
-inp = '0'
+inp = 'xz+yz'
 print(repr(inp))
-forests = myg.parse_on(inp, START)
-for forest in forests:
-    print('parse:', inp)
-    #for v in myg.extract_trees(forest):
-    #    print(format_parsetree(v))
-    #    print('||||||||||||||||||\n')
+x = SimpleExtractor(myg, inp, START)
+t = x.extract_a_tree()
+print(format_parsetree(t))
+#forests = myg.parse_on(inp, START)
+#for forest in forests:
+#    print('parse:', inp)
+#    for v in myg.extract_trees(forest):
+#        print(format_parsetree(v))
+#        print('||||||||||||||||||\n')
 
