@@ -308,6 +308,40 @@ class EarleyParser(EarleyParser):
             for p in I.product(*ptrees):
                 yield (name, p)
 
+
+class O:
+    def __init__(self, **keys): self.__dict__.update(keys)
+    def __repr__(self): return str(self.__dict__)
+
+Options = O(F='|', L='+', V='|', H='-', NL='\n')
+
+def format_newlines(prefix, formatted_node):
+    replacement = ''.join([Options.NL, '\n', prefix])
+    return formatted_node.replace('\n', replacement)
+
+def format_tree(node, format_node, get_children, prefix=''):
+    children = list(get_children(node))
+    next_prefix = ''.join([prefix, Options.V, '   '])
+    for child in children[:-1]:
+        fml = format_newlines(next_prefix, format_node(child))
+        yield ''.join([prefix, Options.F, Options.H, Options.H, ' ', fml])
+        tree = format_tree(child, format_node, get_children, next_prefix)
+        for result in tree:
+            yield result
+    if children:
+        last_prefix = ''.join([prefix, '    '])
+        fml = format_newlines(last_prefix, format_node(children[-1]))
+        yield ''.join([prefix, Options.L, Options.H, Options.H, ' ', fml])
+        tree = format_tree(children[-1], format_node, get_children, last_prefix)
+        for result in tree:
+            yield result
+
+def format_parsetree(node,
+          format_node=lambda x: repr(x[0]),
+          get_children=lambda x: x[1]):
+    lines = I.chain([format_node(node)], format_tree(node, format_node, get_children), [''],)
+    return '\n'.join(lines)
+
 grammar = {
     '<start>': [['<expr>']],
     '<expr>': [
@@ -349,5 +383,5 @@ myg = EarleyParser(grammar)
 forests = myg.parse_on('100+1+1+x111+1', START)
 for forest in forests:
     for v in myg.extract_trees(forest):
-        print(v)
+        print(format_parsetree(v))
 
