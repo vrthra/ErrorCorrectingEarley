@@ -101,9 +101,7 @@ class Column:
     def add(self, state):
         if state in self._unique:
             if self._unique[state].weight > state.weight:
-                del self._unique[state]
-                # delete from self.states
-                self.states = [s for s in self.states if s != state]
+                # delete from self.states in fill_chart
                 state.e_col = self
                 self.states.append(state)
                 self._unique[state] = state
@@ -112,6 +110,16 @@ class Column:
         self.states.append(state)
         state.e_col = self
         return self._unique[state]
+
+    def remove_extra_states(self):
+        my_states = []
+        for state in self._unique:
+            cur_states = [s for s in self.states if s == state]
+            if len(cur_states) > 1:
+                cur_states = sorted(cur_states, key=lambda s: s.weight)
+            my_states.append(cur_states[0])
+        self.states = my_states
+        return
 
 
 class State:
@@ -247,6 +255,7 @@ class EarleyParser(EarleyParser):
                         if i + 1 >= len(chart):
                             continue
                         self.scan(chart[i + 1], state, sym)
+            col.remove_extra_states()
             if self.log: print(col, '\n')
         return chart
 
