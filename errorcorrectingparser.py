@@ -235,7 +235,9 @@ class EarleyParser(EarleyParser):
 class EarleyParser(EarleyParser):
     def scan(self, col, state, letter):
         if letter_match(letter, col.letter):
-            col.add(state.advance())
+            s = state.advance()
+            s.expr = col.letter
+            col.add(s)
 
 class EarleyParser(EarleyParser):
     def complete(self, col, state):
