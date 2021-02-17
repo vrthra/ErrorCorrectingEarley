@@ -1,7 +1,7 @@
 import itertools as I
-Any_plus = '<$.+>'
-Any_one = '<$.>'
-def Any_not(t): return '<!%s>' % t
+Any_plus = '<$.+>' # this is a nonterminal
+Any_one = '{$.}' # this is a terminal
+def Any_not(t): return '{!%s}' % t # this is a terminal.
 def is_not(t):
     if len(t) > 1:
         if  t[1] == '!':
@@ -41,9 +41,10 @@ def add_start(g_, old_start):
 
 def print_g(g):
     for k in g:
-        print(k)
+        print('#',k)
         for rule in g[k]:
-            print('  ', rule)
+            print('#  ', rule)
+
 
 def add_weight(rule, weight):
     assert isinstance(rule, list)
@@ -64,6 +65,11 @@ def fix_terminal(g, t):
 
 def to_term(t): return '<$ %s>' % t
 
+def change_t(t):
+    if is_nt(t):
+        return t
+    else:
+        return to_term(t)
 
 def fix_weighted_terminals(g):
     terms = set()
@@ -73,6 +79,15 @@ def fix_weighted_terminals(g):
             for t in alt:
                 if t not in g:
                     fix_terminal(g, t)
+
+    g_ = {}
+    for k in g:
+        if k[1] == '$':
+            g_[k] = g[k]
+        else:
+            g_[k] = [(tuple([change_t(a) for a in alt]),w) for (alt,w) in g[k]]
+    return g_
+
 
 class Column:
     def __init__(self, index, letter):
@@ -136,12 +151,13 @@ class EarleyParser(Parser):
     def __init__(self, grammar, log=False, **kwargs):
         g_e = add_weights_to_grammar(grammar)
         # need to update terminals
-        fix_weighted_terminals(g_e)
+        g_e = fix_weighted_terminals(g_e)
         self.epsilon = nullable(grammar)
         self._grammar = g_e
         self.log = log
 
 def is_nt(k):
+    if len(k) == 1: return False
     return (k[0], k[-1]) == ('<', '>')
 
 def rem_terminals(g):
@@ -273,6 +289,8 @@ class EarleyParser(EarleyParser):
     def parse_on(self, text, start_symbol_):
         self._grammar = add_start(self._grammar, start_symbol_)
         start_symbol = new_start(start_symbol_)
+        print('#>', start_symbol)
+        print_g(self._grammar)
 
         for alt in self._grammar[start_symbol]:
             cursor, states = self.parse_prefix(text, start_symbol, alt)
@@ -282,6 +300,7 @@ class EarleyParser(EarleyParser):
                 #raise SyntaxError("at " + repr(text[cursor:]))
                 continue
             forest = self.parse_forest(self.table, start)
+            print('weight = ', str(start))
             yield forest
             #for tree in self.extract_trees(forest):
             #    yield tree
@@ -380,8 +399,12 @@ START = '<start>'
 
 
 myg = EarleyParser(grammar)
-forests = myg.parse_on('100+1+1+x111+1', START)
+inp = '1'
+print(repr(inp))
+forests = myg.parse_on(inp, START)
 for forest in forests:
-    for v in myg.extract_trees(forest):
-        print(format_parsetree(v))
+    print(1)
+    #for v in myg.extract_trees(forest):
+    #    print(format_parsetree(v))
+    #    print('||||||||||||||||||\n')
 
