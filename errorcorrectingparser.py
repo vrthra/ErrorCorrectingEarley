@@ -27,16 +27,16 @@ def new_start(old_start):
     old_start_ = old_start[1:-1]
     return '<$%s>' % old_start_
 
-def add_start(g_, old_start):
-    g = dict(g_)
-    new_start_sym = new_start(old_start)
-    g[new_start_sym] = [
-            add_weight([old_start], 0),
-            add_weight([old_start, Any_plus], 0)]
+def add_any(g):
     g[Any_plus] = [
             add_weight([Any_plus, Any_one], 1),
-            add_weight([Any_one], 1),
-            ]
+            add_weight([Any_one], 1)]
+    return g
+
+def add_start(g, old_start):
+    alts = [alt for alt,w in g[old_start]]
+    for alt in alts:
+        g[old_start].append(add_weight(list(alt) + ['<$ .+>'], 0))
     return g
 
 def print_g(g):
@@ -56,7 +56,7 @@ def add_weights_to_grammar(g):
 def fix_terminal(g, t):
     nt_t = to_term(t)
     if nt_t not in g:
-        g[nt_t] = [
+        g[nt_t] = [ # Any_plus already has at least 1 weight.
                 add_weight([t], 0),
                 add_weight([Any_plus, t], 0),
                 add_weight([], 1),
@@ -111,7 +111,7 @@ class State:
     def __init__(self, name, expr, dot, s_col, e_col=None):
         self.name, self.expr_, self.dot = name, expr, dot
         self.s_col, self.e_col = s_col, e_col
-        self.expr, self.weight = self.expr_
+        self.expr, self.weight = expr
 
     def finished(self):
         return self.dot >= len(self.expr)
@@ -126,10 +126,10 @@ class State:
         return self.name + ':= ' + ' '.join([
             str(p)
             for p in [*self.expr[:self.dot], '|', *self.expr[self.dot:]]
-        ]) + "(%d,%d)" % (idx(self.s_col), idx(self.e_col))
+            ]) + "(%d,%d):%d" % (idx(self.s_col), idx(self.e_col), self.weight)
 
     def copy(self):
-        return State(self.name, self.expr_, self.dot, self.s_col, self.e_col)
+        return State(self.name, (self.expr, self.weight), self.dot, self.s_col, self.e_col)
 
     def _t(self):
         return (self.name, self.expr, self.dot, self.s_col.index)
@@ -141,7 +141,7 @@ class State:
         return self._t() == other._t()
 
     def advance(self):
-        return State(self.name, self.expr_, self.dot + 1, self.s_col)
+        return State(self.name, (self.expr, self.weight), self.dot + 1, self.s_col)
 
 class Parser:
     def parse_on(self, text, start_symbol):
@@ -286,10 +286,9 @@ class EarleyParser(EarleyParser):
                             for pathexpr in pathexprs]
 
 class EarleyParser(EarleyParser):
-    def parse_on(self, text, start_symbol_):
-        self._grammar = add_start(self._grammar, start_symbol_)
-        start_symbol = new_start(start_symbol_)
-        print('#>', start_symbol)
+    def parse_on(self, text, start_symbol):
+        self._grammar = add_any(self._grammar)
+        self._grammar = add_start(self._grammar, start_symbol)
         print_g(self._grammar)
 
         for alt in self._grammar[start_symbol]:
