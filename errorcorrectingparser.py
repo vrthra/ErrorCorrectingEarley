@@ -1,3 +1,4 @@
+import itertools as I
 Any_plus = '<$.+>'
 Any_one = '<$.>'
 def Any_not(t): return '<!%s>' % t
@@ -238,6 +239,37 @@ class EarleyParser(EarleyParser):
         return -1, []
 
 class EarleyParser(EarleyParser):
+    def parse_paths(self, named_expr, chart, frm, til):
+        def paths(state, start, k, e):
+            if not e:
+                return [[(state, k)]] if start == frm else []
+            else:
+                return [[(state, k)] + r
+                        for r in self.parse_paths(e, chart, frm, start)]
+
+        *expr, var = named_expr
+        starts = None
+        if var not in self._grammar:
+            starts = ([(var, til - len(var),
+                        't')] if til > 0 and chart[til].letter == var else [])
+        else:
+            starts = [(s, s.s_col.index, 'n') for s in chart[til].states
+                      if s.finished() and s.name == var]
+
+        return [p for s, start, k in starts for p in paths(s, start, k, expr)]
+
+
+class EarleyParser(EarleyParser):
+    def forest(self, s, kind, chart):
+        return self.parse_forest(chart, s) if kind == 'n' else (s, [])
+
+    def parse_forest(self, chart, state):
+        pathexprs = self.parse_paths(state.expr, chart, state.s_col.index,
+                                     state.e_col.index) if state.expr else []
+        return state.name, [[(v, k, chart) for v, k in reversed(pathexpr)]
+                            for pathexpr in pathexprs]
+
+class EarleyParser(EarleyParser):
     def parse_on(self, text, start_symbol_):
         self._grammar = add_start(self._grammar, start_symbol_)
         start_symbol = new_start(start_symbol_)
@@ -249,11 +281,32 @@ class EarleyParser(EarleyParser):
             if cursor < len(text) or not start:
                 #raise SyntaxError("at " + repr(text[cursor:]))
                 continue
-            yield alt
-            #forest = self.parse_forest(self.table, start)
+            forest = self.parse_forest(self.table, start)
+            yield forest
             #for tree in self.extract_trees(forest):
             #    yield tree
 
+class EarleyParser(EarleyParser):
+    def extract_a_tree(self, forest_node):
+        name, paths = forest_node
+        if not paths:
+            return (name, [])
+        return (name, [self.extract_a_tree(self.forest(*p)) for p in paths[0]])
+
+
+    def extract_trees(self, forest):
+        yield self.extract_a_tree(forest)
+
+class EarleyParser(EarleyParser):
+    def extract_trees(self, forest_node):
+        name, paths = forest_node
+        if not paths:
+            yield (name, [])
+        results = []
+        for path in paths:
+            ptrees = [self.extract_trees(self.forest(*p)) for p in path]
+            for p in I.product(*ptrees):
+                yield (name, p)
 
 grammar = {
     '<start>': [['<expr>']],
@@ -293,7 +346,8 @@ START = '<start>'
 
 
 myg = EarleyParser(grammar)
-val = myg.parse_on('100+1+1+x+1', START)
-for v in val:
-    print(v)
+forests = myg.parse_on('100+1+1+x111+1', START)
+for forest in forests:
+    for v in myg.extract_trees(forest):
+        print(v)
 
